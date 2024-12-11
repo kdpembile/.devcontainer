@@ -1,0 +1,90 @@
+services:  
+  mongodb:
+    image: mongodb/mongodb-community-server:6.0-ubi8
+    restart: always
+    command: mongod
+    healthcheck:      
+      test: "mongo --eval 'db.stats().ok'"      
+      interval: 5s      
+      timeout: 2s      
+      retries: 60
+    deploy:      
+      resources:        
+      limits:          
+        memory: 512m 
+    volumes:
+      - type: bind
+        source: ./data
+        target: /data/mongodb
+
+  zookeeper:    
+    image: confluentinc/cp-zookeeper:7.4.0    
+    restart: always    
+    environment:      
+      ZOOKEEPER_CLIENT_PORT: 2181      
+      ZOOKEEPER_TICK_TIME: 2000    
+    ports:      
+      - 22181:2181    
+    deploy:      
+      resources:       
+      limits:         
+        memory: 512m  
+        
+  kafka:    
+    image: confluentinc/cp-kafka:7.4.0    
+    restart: always    
+    depends_on:      
+      - zookeeper    
+    ports:      
+      - 29092:29092    
+    environment:      
+      KAFKA_BROKER_ID: 1      
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181      
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,PLAINTEXT_HOST://localhost:29092      
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT      
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT      
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1    
+    deploy:      
+      resources:        
+      limits:          
+        memory: 512m  
+        
+  rabbitmq:    
+    image: rabbitmq:3.8.11-management    
+    restart: always    
+    ports:      
+      - 5672:5672      
+      - 15672:15672    
+    deploy:      
+      resources:        
+      limits:          
+        memory: 512m    
+    healthcheck:      
+      test: ["CMD", "rabbitmqctl", "status"]      
+      interval: 5s      
+      timeout: 2s      
+      retries: 60  
+        
+  localstack:    
+    container_name: "cs-localstack"    
+    image: localstack/localstack    
+    ports:      
+      - "127.0.0.1:4566:4566" # LocalStack Gateway      
+      - "127.0.0.1:4510-4559:4510-4559" # external services port range    
+    environment:      
+      # LocalStack configuration: https://docs.localstack.cloud/references/configuration/      
+      - DEBUG=${DEBUG:-0}    
+    volumes:      
+      - "${LOCALSTACK_VOLUME_DIR:-./volume}:/var/lib/localstack"      
+      - "/var/run/docker.sock:/var/run/docker.sock"  
+      
+  activemq:      
+    image: rmohr/activemq:5.10.0      
+    container_name: activemq      
+    environment:        
+      - "TZ=Europe/Amsterdam"      
+    volumes:        
+      - "./activemq/activemq.xml:/conf/activemq.xml"      
+    ports:        
+      - "61616:61616" # broker (admin:adminactivemq)(amq:amq)        
+      - "8161:8161" # web    http://boot2docker:8161/admin (admin:admin)
